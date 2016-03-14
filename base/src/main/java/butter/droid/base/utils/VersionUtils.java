@@ -24,6 +24,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Build;
 
+import butter.droid.base.BuildConfig;
 import butter.droid.base.ButterApplication;
 
 public class VersionUtils {
@@ -46,8 +47,8 @@ public class VersionUtils {
     }
 
     public static boolean isUsingCorrectBuild() {
-        String buidAbi = getBuildAbi();
-        if(buidAbi.equalsIgnoreCase("local"))
+        String buildAbi = getBuildAbi();
+        if(BuildConfig.GIT_BRANCH.equalsIgnoreCase("local"))
             return true;
 
         String deviceAbi;
@@ -57,11 +58,7 @@ public class VersionUtils {
             deviceAbi = Build.SUPPORTED_ABIS[0];
         }
 
-        // TODO: if arm64 works remove this
-        if(deviceAbi.equalsIgnoreCase("arm64-v8a"))
-            deviceAbi = "armeabi-v7a";
-
-        return deviceAbi.equalsIgnoreCase(buidAbi);
+        return deviceAbi.equalsIgnoreCase(buildAbi);
     }
 
     private static String getBuildAbi() {
@@ -73,13 +70,13 @@ public class VersionUtils {
             if(info.versionName.contains("local"))
                 return "local";
 
-            if(versionCode > 4000000) {
+            if(versionCode > 40000000) {
                 return "x86";
-            } else if(versionCode > 3000000) {
+            } else if(versionCode > 30000000) {
                 return "arm64-v8a";
-            } else if(versionCode > 2000000) {
+            } else if(versionCode > 20000000) {
                 return "armeabi-v7a";
-            } else if(versionCode > 1000000) {
+            } else if(versionCode > 10000000) {
                 return "armeabi";
             }
         } catch (PackageManager.NameNotFoundException e) {

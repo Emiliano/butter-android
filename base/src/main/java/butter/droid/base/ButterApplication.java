@@ -30,10 +30,6 @@ import android.net.Uri;
 import android.support.multidex.MultiDex;
 import android.support.v4.app.NotificationCompat;
 
-import com.crashlytics.android.Crashlytics;
-import com.facebook.stetho.Stetho;
-import com.facebook.stetho.okhttp.StethoInterceptor;
-import com.facebook.stetho.timber.StethoTree;
 import com.sjl.foreground.Foreground;
 import com.squareup.leakcanary.LeakCanary;
 import com.squareup.okhttp.OkHttpClient;
@@ -41,8 +37,8 @@ import com.squareup.picasso.OkHttpDownloader;
 import com.squareup.picasso.Picasso;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
-import io.fabric.sdk.android.Fabric;
 import butter.droid.base.beaming.BeamManager;
 import butter.droid.base.content.preferences.Prefs;
 import butter.droid.base.torrent.TorrentService;
@@ -71,20 +67,10 @@ public class ButterApplication extends Application implements ButterUpdater.List
         super.onCreate();
         sThis = this;
 
-        if(!BuildConfig.GIT_BRANCH.equals("local"))
-            Fabric.with(this, new Crashlytics());
-
         sDefSystemLanguage = LocaleUtils.getCurrentAsString();
 
         LeakCanary.install(this);
         Foreground.init(this);
-
-        Stetho.initialize(
-                Stetho.newInitializerBuilder(this)
-                        .enableDumpapp(Stetho.defaultDumperPluginsProvider(this))
-                        .enableWebKitInspector(Stetho.defaultInspectorModulesProvider(this))
-                        .build()
-        );
 
         Constants.DEBUG_ENABLED = false;
         int versionCode = 0;
@@ -102,7 +88,6 @@ public class ButterApplication extends Application implements ButterUpdater.List
         if (Constants.DEBUG_ENABLED) {
             Timber.plant(new Timber.DebugTree());
         }
-        Timber.plant(new StethoTree());
 
         ButterUpdater.getInstance(this, this).checkUpdates(false);
 
@@ -122,12 +107,6 @@ public class ButterApplication extends Application implements ButterUpdater.List
 
         Timber.d("StorageLocations: " + StorageUtils.getAllStorageLocations());
         Timber.i("Chosen cache location: " + directory);
-
-
-        if (PrefUtils.get(this, Prefs.INSTALLED_VERSION, 0) < versionCode) {
-            PrefUtils.save(this, Prefs.INSTALLED_VERSION, versionCode);
-            FileUtils.recursiveDelete(new File(StorageUtils.getIdealCacheDirectory(this) + "/backend"));
-        }
 
         Picasso.Builder builder = new Picasso.Builder(getAppContext());
         OkHttpDownloader downloader = new OkHttpDownloader(getHttpClient());
@@ -155,6 +134,9 @@ public class ButterApplication extends Application implements ButterUpdater.List
     public static OkHttpClient getHttpClient() {
         if (sHttpClient == null) {
             sHttpClient = new OkHttpClient();
+            sHttpClient.setConnectTimeout(30, TimeUnit.SECONDS);
+            sHttpClient.setReadTimeout(60, TimeUnit.SECONDS);
+            sHttpClient.setRetryOnConnectionFailure(true);
 
             int cacheSize = 10 * 1024 * 1024;
             File cacheLocation = new File(PrefUtils.get(ButterApplication.getAppContext(), Prefs.STORAGE_LOCATION, StorageUtils.getIdealCacheDirectory(ButterApplication.getAppContext()).toString()));
@@ -166,7 +148,6 @@ public class ButterApplication extends Application implements ButterUpdater.List
                 e.printStackTrace();
             }
             sHttpClient.setCache(cache);
-            sHttpClient.networkInterceptors().add(new StethoInterceptor());
         }
         return sHttpClient;
     }
