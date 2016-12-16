@@ -4,10 +4,6 @@ import android.content.Context;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
-import com.squareup.okhttp.Callback;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -18,18 +14,23 @@ import butter.droid.base.providers.media.models.Media;
 import butter.droid.base.providers.subs.SubsProvider;
 import butter.droid.base.torrent.StreamInfo;
 import butter.droid.base.utils.FileUtils;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
 
 public class SubtitleDownloader {
 
+    private final SubsProvider subsProvider;
     private final Media media;
     private final WeakReference<Context> contextReference;
 
     private String subtitleLanguage;
     private WeakReference<ISubtitleDownloaderListener> listenerReference;
 
-    public SubtitleDownloader(@NonNull Context context, @NonNull StreamInfo streamInfo, @NonNull String language) {
+    public SubtitleDownloader(@NonNull SubsProvider subsProvider, @NonNull Context context, @NonNull StreamInfo streamInfo, @NonNull String language) {
         if (language.equals(SubsProvider.SUBTITLE_LANGUAGE_NONE)) throw new IllegalArgumentException("language must be specified");
 
+        this.subsProvider = subsProvider;
         contextReference = new WeakReference<>(context);
         subtitleLanguage = language;
 
@@ -40,15 +41,12 @@ public class SubtitleDownloader {
     public void downloadSubtitle() {
         if (listenerReference == null) throw new IllegalArgumentException("listener must not null. Call setSubtitleDownloaderListener() to sets one");
         if (contextReference.get() == null) return;
-        Context context = contextReference.get();
-        SubsProvider.download(context, media, subtitleLanguage, new Callback() {
-            @Override
-            public void onFailure(Request request, IOException exception) {
+        subsProvider.download(media, subtitleLanguage, new Callback() {
+            @Override public void onFailure(Call call, IOException e) {
                 onSubtitleDownloadFailed();
             }
 
-            @Override
-            public void onResponse(Response response) throws IOException {
+            @Override public void onResponse(Call call, Response response) throws IOException {
                 onSubtitleDownloadSuccess();
             }
         });

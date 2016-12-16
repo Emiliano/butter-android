@@ -52,7 +52,8 @@ import com.squareup.picasso.Target;
 
 import java.lang.ref.WeakReference;
 
-import butterknife.Bind;
+import butter.droid.tv.TVButterApplication;
+import butterknife.BindView;
 import butterknife.ButterKnife;
 import de.greenrobot.event.EventBus;
 import butter.droid.base.content.preferences.Prefs;
@@ -76,12 +77,10 @@ import butter.droid.tv.events.ToggleSubtitleEvent;
 import butter.droid.tv.events.UpdatePlaybackStateEvent;
 
 public class TVVideoPlayerFragment extends BaseVideoPlayerFragment {
-    @Bind(R.id.video_surface)
-    SurfaceView mVideoSurface;
-    @Bind(R.id.subtitle_text)
-    StrokedTextView mSubtitleText;
-    @Bind(R.id.progress_indicator)
-    ProgressBar mProgressIndicator;
+
+    @BindView(R.id.video_surface) SurfaceView mVideoSurface;
+    @BindView(R.id.subtitle_text) StrokedTextView mSubtitleText;
+    @BindView(R.id.progress_indicator) ProgressBar mProgressIndicator;
 
     private boolean mIsSubtitleEnabled = false;
     private boolean mMediaSessionMetadataApplied = false;
@@ -92,6 +91,11 @@ public class TVVideoPlayerFragment extends BaseVideoPlayerFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        TVButterApplication.getAppContext()
+                .getComponent()
+                .inject(this);
+
         mStreamInfo = ((TVVideoPlayerFragment.Callback) getActivity()).getInfo();
     }
 

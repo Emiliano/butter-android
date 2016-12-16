@@ -22,17 +22,14 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.support.annotation.Nullable;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.internal.LinkedTreeMap;
-import com.squareup.okhttp.Call;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.SocketException;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,22 +38,30 @@ import butter.droid.base.R;
 import butter.droid.base.providers.media.models.Genre;
 import butter.droid.base.providers.media.models.Media;
 import butter.droid.base.providers.media.models.Movie;
+import butter.droid.base.providers.subs.SubsProvider;
 import butter.droid.base.utils.LocaleUtils;
 import butter.droid.base.utils.StringUtils;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class VodoProvider extends MediaProvider {
 
-    private static final VodoProvider sMediaProvider = new VodoProvider();
     private static Integer CURRENT_API = 0;
     private static final String[] API_URLS = {
-            "http://vodo.net/popcorn"
+            "http://butter.vodo.net/popcorn"
     };
     public static String CURRENT_URL = API_URLS[CURRENT_API];
 
     private static Filters sFilters = new Filters();
 
+    public VodoProvider(OkHttpClient client, Gson gson, @Nullable SubsProvider subsProvider) {
+        super(client, gson, subsProvider);
+    }
+
     @Override
-    protected Call enqueue(Request request, com.squareup.okhttp.Callback requestCallback) {
+    protected Call enqueue(Request request, okhttp3.Callback requestCallback) {
         Context context = ButterApplication.getAppContext();
         PackageInfo pInfo;
         String versionName = "0.0.0";
@@ -66,7 +71,12 @@ public class VodoProvider extends MediaProvider {
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
         }
-        request = request.newBuilder().removeHeader("User-Agent").addHeader("User-Agent", String.format("Mozilla/5.0 (Linux; U; Android %s; %s; %s Build/%s) AppleWebkit/534.30 (KHTML, like Gecko) PT/%s", Build.VERSION.RELEASE, LocaleUtils.getCurrentAsString(), Build.MODEL, Build.DISPLAY, versionName)).build();
+        request = request
+                .newBuilder().removeHeader("User-Agent")
+                .addHeader("User-Agent", String.format(
+                        "Mozilla/5.0 (Linux; U; Android %s; %s; %s Build/%s) AppleWebkit/534.30 (KHTML, like Gecko) PT/%s",
+                        Build.VERSION.RELEASE, LocaleUtils.getCurrentAsString(), Build.MODEL, Build.DISPLAY,
+                        versionName)).build();
         return super.enqueue(request, requestCallback);
     }
 
@@ -102,7 +112,7 @@ public class VodoProvider extends MediaProvider {
             params.add(new NameValuePair("order_by", "desc"));
         }
 
-        if(filters.langCode != null) {
+        if (filters.langCode != null) {
             params.add(new NameValuePair("lang", filters.langCode));
         }
 
@@ -135,11 +145,11 @@ public class VodoProvider extends MediaProvider {
             params.add(new NameValuePair("page", Integer.toString(filters.page)));
         }
 
-        Request.Builder requestBuilder = new Request.Builder();
-        String query = "?" + buildQuery(params);
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(CURRENT_URL);
+
         // query not used, but still here as example
-        requestBuilder.url(CURRENT_URL);
-        requestBuilder.tag(MEDIA_CALL);
+//        String query = "?" + buildQuery(params);
 
         return fetchList(currentList, requestBuilder, filters, callback);
     }
@@ -147,20 +157,20 @@ public class VodoProvider extends MediaProvider {
     /**
      * Fetch the list of movies from YTS
      *
-     * @param currentList    Current shown list to be extended
+     * @param currentList Current shown list to be extended
      * @param requestBuilder Request to be executed
-     * @param callback       Network callback
+     * @param callback Network callback
      * @return Call
      */
-    private Call fetchList(final ArrayList<Media> currentList, final Request.Builder requestBuilder, final Filters filters, final Callback callback) {
-        return enqueue(requestBuilder.build(), new com.squareup.okhttp.Callback() {
-            @Override
-            public void onFailure(Request request, IOException e) {
-                String url = requestBuilder.build().urlString();
+    private Call fetchList(final ArrayList<Media> currentList, final Request.Builder requestBuilder,
+            final Filters filters, final Callback callback) {
+        return enqueue(requestBuilder.build(), new okhttp3.Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                String url = requestBuilder.build().url().toString();
                 if (CURRENT_API >= API_URLS.length - 1) {
                     callback.onFailure(e);
                 } else {
-                    if(url.contains(API_URLS[CURRENT_API])) {
+                    if (url.contains(API_URLS[CURRENT_API])) {
                         url = url.replace(API_URLS[CURRENT_API], API_URLS[CURRENT_API + 1]);
                         url = url.replace(API_URLS[CURRENT_API], API_URLS[CURRENT_API + 1]);
                         CURRENT_API++;
@@ -173,14 +183,13 @@ public class VodoProvider extends MediaProvider {
                 }
             }
 
-            @Override
-            public void onResponse(Response response) throws IOException {
+            @Override public void onResponse(Call call, Response response) throws IOException {
                 if (response.isSuccessful()) {
                     String responseStr;
                     try {
                         responseStr = response.body().string();
                     } catch (SocketException e) {
-                        onFailure(response.request(), new IOException("Socket failed"));
+                        onFailure(call, new IOException("Socket failed"));
                         return;
                     }
 
@@ -188,16 +197,16 @@ public class VodoProvider extends MediaProvider {
                     try {
                         result = mGson.fromJson(responseStr, VodoResponse.class);
                     } catch (IllegalStateException e) {
-                        onFailure(response.request(), new IOException("JSON Failed"));
+                        onFailure(call, new IOException("JSON Failed"));
                         return;
                     } catch (JsonSyntaxException e) {
-                        onFailure(response.request(), new IOException("JSON Failed"));
+                        onFailure(call, new IOException("JSON Failed"));
                         return;
                     }
 
-                    if(result == null) {
+                    if (result == null) {
                         callback.onFailure(new NetworkErrorException("No response"));
-                    } else if(result.downloads == null || result.downloads.size() <= 0) {
+                    } else if (result.downloads == null || result.downloads.size() <= 0) {
                         callback.onFailure(new NetworkErrorException("No movies found"));
                     } else {
                         ArrayList<Media> formattedData = result.formatForApp(currentList);
@@ -205,7 +214,7 @@ public class VodoProvider extends MediaProvider {
                         return;
                     }
                 }
-                onFailure(response.request(), new IOException("Couldn't connect to Vodo"));
+                onFailure(call, new IOException("Couldn't connect to Vodo"));
             }
         });
     }
@@ -225,7 +234,7 @@ public class VodoProvider extends MediaProvider {
          * Test if there is an item that already exists
          *
          * @param results List with items
-         * @param id      Id of item to check for
+         * @param id Id of item to check for
          * @return Return the index of the item in the results
          */
         private int isInResults(ArrayList<Media> results, String id) {
@@ -250,7 +259,7 @@ public class VodoProvider extends MediaProvider {
             }
 
             for (LinkedTreeMap<String, Object> item : movies) {
-                Movie movie = new Movie(sMediaProvider, null);
+                Movie movie = new Movie();
 
                 movie.imdbId = (String) item.get("ImdbCode");
                 movie.videoId = movie.imdbId.substring(2);
@@ -268,7 +277,7 @@ public class VodoProvider extends MediaProvider {
                     movie.trailer = null;
                     String runtimeStr = item.get("Runtime").toString();
                     Double runtime = 0d;
-                    if(!runtimeStr.isEmpty())
+                    if (!runtimeStr.isEmpty())
                         runtime = Double.parseDouble(runtimeStr);
                     movie.runtime = Integer.toString(runtime.intValue());
                     movie.synopsis = (String) item.get("Synopsis");
@@ -288,6 +297,7 @@ public class VodoProvider extends MediaProvider {
             return existingList;
         }
     }
+
     @Override
     public int getLoadingMessage() {
         return R.string.loading_movies;
@@ -296,7 +306,8 @@ public class VodoProvider extends MediaProvider {
     @Override
     public List<NavInfo> getNavigation() {
         List<NavInfo> tabs = new ArrayList<>();
-        tabs.add(new NavInfo(R.id.yts_filter_a_to_z,Filters.Sort.ALPHABET, Filters.Order.ASC, ButterApplication.getAppContext().getString(R.string.a_to_z),R.drawable.yts_filter_a_to_z));
+        tabs.add(new NavInfo(R.id.yts_filter_a_to_z, Filters.Sort.ALPHABET, Filters.Order.ASC,
+                ButterApplication.getAppContext().getString(R.string.a_to_z), R.drawable.yts_filter_a_to_z));
         return tabs;
     }
 

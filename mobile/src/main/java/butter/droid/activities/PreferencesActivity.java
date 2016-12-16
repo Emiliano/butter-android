@@ -17,7 +17,7 @@
 
 package butter.droid.activities;
 
-import android.app.Activity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -38,19 +38,24 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import butterknife.Bind;
+import javax.inject.Inject;
+
+import butter.droid.MobileButterApplication;
 import butter.droid.R;
 import butter.droid.activities.base.ButterBaseActivity;
 import butter.droid.adapters.PreferencesListAdapter;
-import butter.droid.base.fragments.dialog.NumberPickerDialogFragment;
-import butter.droid.base.fragments.dialog.StringArraySelectorDialogFragment;
 import butter.droid.base.content.preferences.PrefItem;
 import butter.droid.base.content.preferences.PreferencesHandler;
+import butter.droid.base.fragments.dialog.NumberPickerDialogFragment;
+import butter.droid.base.fragments.dialog.StringArraySelectorDialogFragment;
+import butter.droid.base.manager.updater.ButterUpdateManager;
 import butter.droid.base.utils.PrefUtils;
 import butter.droid.base.utils.ResourceUtils;
 import butter.droid.fragments.dialog.ColorPickerDialogFragment;
+import butter.droid.fragments.dialog.NumberDialogFragment;
 import butter.droid.fragments.dialog.SeekBarDialogFragment;
 import butter.droid.utils.ToolbarUtils;
+import butterknife.BindView;
 
 public class PreferencesActivity extends ButterBaseActivity
         implements SharedPreferences.OnSharedPreferenceChangeListener, PreferencesHandler {
@@ -58,21 +63,18 @@ public class PreferencesActivity extends ButterBaseActivity
     private List<PrefItem> mPrefItems = new ArrayList<>();
     private LinearLayoutManager mLayoutManager;
 
-    @Bind(R.id.toolbar)
-    Toolbar toolbar;
-    @Bind(R.id.recyclerView)
-    RecyclerView recyclerView;
-    @Bind(R.id.rootLayout)
-    ViewGroup rootLayout;
+    @Inject ButterUpdateManager updateManager;
 
-    public static Intent startActivity(Activity activity) {
-        Intent intent = new Intent(activity, PreferencesActivity.class);
-        activity.startActivity(intent);
-        return intent;
-    }
+    @BindView(R.id.toolbar) Toolbar toolbar;
+    @BindView(R.id.recyclerView) RecyclerView recyclerView;
+    @BindView(R.id.rootLayout) ViewGroup rootLayout;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        MobileButterApplication.getAppContext()
+                .getComponent()
+                .inject(this);
+
         super.onCreate(savedInstanceState, R.layout.activity_preferences);
         setSupportActionBar(toolbar);
 
@@ -97,7 +99,7 @@ public class PreferencesActivity extends ButterBaseActivity
     }
 
     private void refreshItems() {
-        mPrefItems = ItemsGenerator.generate(this, false);
+        mPrefItems = ItemsGenerator.generate(this, updateManager, false);
 
         if (recyclerView.getAdapter() != null && mLayoutManager != null) {
             int position = mLayoutManager.findFirstVisibleItemPosition();
@@ -237,6 +239,22 @@ public class PreferencesActivity extends ButterBaseActivity
                 }
             });
             dialogFragment.show(getSupportFragmentManager(), "pref_fragment");
+        } else if(mode == SelectionMode.PRECISE_NUMBER) {
+            Bundle args = new Bundle();
+            args.putString(NumberDialogFragment.TITLE, title);
+            args.putInt(NumberDialogFragment.MAX_VALUE, high);
+            args.putInt(NumberDialogFragment.MIN_VALUE, low);
+            args.putInt(NumberDialogFragment.DEFAULT_VALUE, (int) value);
+
+            NumberDialogFragment dialogFragment = new NumberDialogFragment();
+            dialogFragment.setArguments(args);
+            dialogFragment.setOnResultListener(new NumberDialogFragment.ResultListener() {
+                @Override
+                public void onNewValue(int value) {
+                    onSelectionListener.onSelection(0, value);
+                }
+            });
+            dialogFragment.show(getFragmentManager(), "pref_fragment");
         }
     }
 
@@ -247,5 +265,9 @@ public class PreferencesActivity extends ButterBaseActivity
             return;
         }
         Snackbar.make(rootLayout, message, Snackbar.LENGTH_SHORT).show();
+    }
+
+    public static Intent getIntent(Context context) {
+        return new Intent(context, PreferencesActivity.class);
     }
 }

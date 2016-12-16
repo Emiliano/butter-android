@@ -27,7 +27,7 @@ public class Prefs {
     public static final String REMOVE_CACHE = "remove_cache";
     public static final String HW_ACCELERATION = "hw_acceleration";
     public static final String AUTOMATIC_UPDATES = "auto_updates";
-    public static final String DEFAULT_VIEW = "default_view";
+    public static final String DEFAULT_PROVIDER = "default_provider";
     public static final String DEFAULT_PLAYER = "default_player";
     public static final String DEFAULT_PLAYER_NAME = "default_player_name";
     public static final String INSTALLED_VERSION = "installed_version";
@@ -39,6 +39,8 @@ public class Prefs {
     public static final String LIBTORRENT_CONNECTION_LIMIT = "libtorrent_connectionlimit";
     public static final String LIBTORRENT_DOWNLOAD_LIMIT = "libtorrent_downloadlimit";
     public static final String LIBTORRENT_UPLOAD_LIMIT = "libtorrent_uploadlimit";
+    public static final String LIBTORRENT_LISTENING_PORT = "libtorrent_listeningport";
+    public static final String LIBTORRENT_AUTOMATIC_PORT = "libtorrent_automaticport";
     public static final String SHOW_VPN = "show_vpn";
     public static final String PIXEL_FORMAT = "pixel_format";
     public static final String QUALITY_DEFAULT = "quality_default";

@@ -19,10 +19,7 @@ package butter.droid.base.providers.subs;
 
 import android.content.Context;
 
-import com.squareup.okhttp.Call;
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
+import com.google.gson.Gson;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -35,7 +32,6 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import butter.droid.base.ButterApplication;
 import butter.droid.base.content.preferences.Prefs;
 import butter.droid.base.providers.BaseProvider;
 import butter.droid.base.providers.media.models.Episode;
@@ -48,12 +44,26 @@ import butter.droid.base.subs.TimedTextObject;
 import butter.droid.base.utils.FileUtils;
 import butter.droid.base.utils.PrefUtils;
 import butter.droid.base.utils.StorageUtils;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public abstract class SubsProvider extends BaseProvider {
-    public static final String SUBS_CALL = "subs_http_call";
+
     public static final String SUBTITLE_LANGUAGE_NONE = "no-subs";
 
     private static List<String> SUB_EXTENSIONS = Arrays.asList("srt", "ssa", "ass");
+
+    private final Context context;
+    private final OkHttpClient client;
+
+    public SubsProvider(Context context, OkHttpClient client, Gson gson) {
+        super(client, gson);
+
+        this.context = context;
+        this.client = client;
+    }
 
     public abstract void getList(Movie movie, Callback callback);
 
@@ -70,14 +80,12 @@ public abstract class SubsProvider extends BaseProvider {
     }
 
     /**
-     * @param context      Context
      * @param media        Media data
      * @param languageCode Code of language
      * @param callback     Network callback
      * @return Call
      */
-    public static Call download(final Context context, final Media media, final String languageCode, final com.squareup.okhttp.Callback callback) {
-        OkHttpClient client = ButterApplication.getHttpClient();
+    public Call download(final Media media, final String languageCode, final okhttp3.Callback callback) {
         if (media.subtitles != null && media.subtitles.containsKey(languageCode)) {
             try {
                 Request request = new Request.Builder().url(media.subtitles.get(languageCode)).build();
@@ -88,18 +96,16 @@ public abstract class SubsProvider extends BaseProvider {
                 final File srtPath = new File(subsDirectory, fileName + ".srt");
 
                 if (srtPath.exists()) {
-                    callback.onResponse(null);
+                    callback.onResponse(null, null);
                     return call;
                 }
 
-                call.enqueue(new com.squareup.okhttp.Callback() {
-                    @Override
-                    public void onFailure(Request request, IOException e) {
-                        callback.onFailure(request, e);
+                call.enqueue(new okhttp3.Callback() {
+                    @Override public void onFailure(Call call, IOException e) {
+                        callback.onFailure(call, e);
                     }
 
-                    @Override
-                    public void onResponse(Response response) throws IOException {
+                    @Override public void onResponse(Call call, Response response) throws IOException {
                         if (response.isSuccessful()) {
                             InputStream inputStream = null;
                             boolean failure = false;
@@ -114,37 +120,38 @@ public abstract class SubsProvider extends BaseProvider {
                                 }
 
                                 inputStream = response.body().byteStream();
-                                String urlString = response.request().urlString();
+                                String urlString = response.request().url().toString();
 
                                 if (urlString.contains(".zip") || urlString.contains(".gz")) {
                                     SubsProvider.unpack(inputStream, srtPath, languageCode);
                                 } else if (SubsProvider.isSubFormat(urlString)) {
                                     parseFormatAndSave(urlString, srtPath, languageCode, inputStream);
                                 } else {
-                                    callback.onFailure(response.request(), new IOException("FatalParsingException"));
+                                    callback.onFailure(call, new IOException("FatalParsingException"));
                                     failure = true;
                                 }
                             } catch (FatalParsingException e) {
                                 e.printStackTrace();
-                                callback.onFailure(response.request(), new IOException("FatalParsingException"));
+                                callback.onFailure(call, new IOException("FatalParsingException"));
                                 failure = true;
                             } catch (FileNotFoundException e) {
                                 e.printStackTrace();
-                                callback.onFailure(response.request(), e);
+                                callback.onFailure(call, e);
                                 failure = true;
                             } catch (IOException e) {
                                 e.printStackTrace();
-                                callback.onFailure(response.request(), e);
+                                callback.onFailure(call, e);
                                 failure = true;
                             } finally {
                                 if (inputStream != null)
                                     inputStream.close();
 
-                                if (!failure) callback.onResponse(response);
+                                if (!failure) callback.onResponse(call, response);
                             }
                         } else {
-                            callback.onFailure(response.request(), new IOException("Unknown error"));
+                            callback.onFailure(call, new IOException("Unknown error"));
                         }
+
                     }
                 });
 
